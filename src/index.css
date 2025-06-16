@@ -1,0 +1,28 @@
+/* Estilos para el Calendario */
+.fc {
+    margin-top: 1.5rem;
+}
+
+/* Estilos para el Kanban */
+.kanban-tasks {
+    min-height: 400px;
+    transition: background-color 0.2s;
+}
+
+.kanban-card {
+    cursor: grab;
+    transition: box-shadow 0.2s;
+}
+
+.kanban-card:hover {
+    box-shadow: 0 .5rem 1rem rgba(0,0,0,.15) !important;
+}
+
+.kanban-card.dragging {
+    opacity: 0.6;
+    transform: rotate(3deg);
+}
+
+.kanban-col.drag-over {
+    background-color: #e9ecef !important;
+}
