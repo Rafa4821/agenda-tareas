@@ -6,6 +6,7 @@ import ListView from './components/ListView';
 import KanbanView from './components/KanbanView';
 import CalendarView from './components/CalendarView';
 import TaskModal from './components/TaskModal';
+import { getTasks, saveTask, deleteTask, bulkDeleteTasks } from './services/taskService';
 
 function BulkActionsBar({ selectedCount, onBulkDelete }) {
   if (selectedCount === 0) return null;
@@ -96,17 +97,22 @@ function App() {
                     }
                 }
             });
-        }, 30000);
+        }, 60000);
 
         return () => clearInterval(intervalId);
     }, [tasks]);
 
     useEffect(() => {
         setLoading(true);
-        fetch('/api/tasks')
-            .then(res => res.ok ? res.json() : Promise.reject(res))
-            .then(data => { setTasks(data); setLoading(false); })
-            .catch(err => { console.error("Error fetching tasks:", err); setLoading(false); });
+        getTasks()
+            .then(data => {
+                setTasks(data);
+                setLoading(false);
+            })
+            .catch(err => {
+                console.error("Error loading tasks from localStorage:", err);
+                setLoading(false);
+            });
     }, []);
 
     const handleOpenModal = (task = null) => {
@@ -120,21 +126,10 @@ function App() {
     };
 
     const handleSaveTask = async (taskData) => {
-        const isUpdating = !!taskData.id;
-        const url = isUpdating ? `/api/tasks?id=${taskData.id}` : '/api/tasks';
-        const method = isUpdating ? 'PUT' : 'POST';
-
-        const response = await fetch(url, {
-            method,
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(taskData),
-        });
-
-        const savedTask = await response.json();
-
-        if (isUpdating) {
-            setTasks(tasks.map(t => t.id === savedTask.id ? savedTask : t));
-        } else {
+        const savedTask = await saveTask(taskData);
+        if (taskData.id) { // Es una actualización
+            setTasks(tasks.map(t => (t.id === savedTask.id ? savedTask : t)));
+        } else { // Es una creación
             setTasks([...tasks, savedTask]);
         }
         handleCloseModal();
@@ -142,17 +137,14 @@ function App() {
 
     const handleDeleteTask = async (taskId) => {
         if (confirm('¿Estás seguro de que quieres borrar esta tarea?')) {
-            await fetch(`/api/tasks?id=${taskId}`, { method: 'DELETE' });
+            await deleteTask(taskId);
             setTasks(tasks.filter(t => t.id !== taskId));
         }
     };
 
     const handleBulkDelete = async () => {
         if (confirm(`¿Estás seguro de que quieres borrar ${selectedTaskIds.size} tareas?`)) {
-            const deletePromises = Array.from(selectedTaskIds).map(id =>
-                fetch(`/api/tasks?id=${id}`, { method: 'DELETE' })
-            );
-            await Promise.all(deletePromises);
+            await bulkDeleteTasks(selectedTaskIds);
             setTasks(tasks.filter(t => !selectedTaskIds.has(t.id)));
             setSelectedTaskIds(new Set());
         }
