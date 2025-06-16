@@ -8,7 +8,7 @@
   ],
   "routes": [
     {
-      "src": "/api/tasks",
+      "src": "/api/tasks.*",
       "dest": "/api/tasks.js"
     },
     { "handle": "filesystem" },
