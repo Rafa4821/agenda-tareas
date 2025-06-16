@@ -1,5 +1,10 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Modal } from 'bootstrap';
+import DatePicker, { registerLocale } from 'react-datepicker';
+import 'react-datepicker/dist/react-datepicker.css';
+import es from 'date-fns/locale/es';
+
+registerLocale('es', es);
 
 function TaskModal({ isOpen, onClose, onSave, task }) {
     const [formData, setFormData] = useState({});
@@ -26,24 +31,25 @@ function TaskModal({ isOpen, onClose, onSave, task }) {
     }, [isOpen]);
 
     useEffect(() => {
-        if (task) {
-            const formatForInput = (dateStr) => dateStr ? new Date(dateStr).toISOString().slice(0, 16) : '';
-            setFormData({ 
-                ...task, 
-                fechaLimite: formatForInput(task.fechaLimite),
-                reminderDate: formatForInput(task.reminderDate)
-            });
-        } else {
-            setFormData({
-                titulo: '',
-                descripcion: '',
-                fechaLimite: '',
-                prioridad: 'Media',
-                estado: 'Por hacer',
-                cliente: '',
-                brief: '',
-                reminderDate: ''
-            });
+        if (isOpen) {
+            if (task) {
+                setFormData({
+                    ...task,
+                    fechaLimite: task.fechaLimite ? new Date(task.fechaLimite) : null,
+                    reminderDate: task.reminderDate ? new Date(task.reminderDate) : null
+                });
+            } else {
+                setFormData({
+                    titulo: '',
+                    descripcion: '',
+                    fechaLimite: null,
+                    prioridad: 'Media',
+                    estado: 'Por hacer',
+                    cliente: '',
+                    brief: '',
+                    reminderDate: null
+                });
+            }
         }
     }, [task, isOpen]);
 
@@ -52,9 +58,18 @@ function TaskModal({ isOpen, onClose, onSave, task }) {
         setFormData(prev => ({ ...prev, [name]: value }));
     };
 
+    const handleDateChange = (date, name) => {
+        setFormData(prev => ({ ...prev, [name]: date }));
+    };
+
     const handleSubmit = (e) => {
         e.preventDefault();
-        onSave(formData);
+        const submissionData = {
+            ...formData,
+            fechaLimite: formData.fechaLimite ? formData.fechaLimite.toISOString() : null,
+            reminderDate: formData.reminderDate ? formData.reminderDate.toISOString() : null,
+        };
+        onSave(submissionData);
     };
 
     return (
@@ -63,7 +78,7 @@ function TaskModal({ isOpen, onClose, onSave, task }) {
                 <div className="modal-content">
                     <div className="modal-header">
                         <h5 className="modal-title">{task ? 'Editar Tarea' : 'Nueva Tarea'}</h5>
-                        <button type="button" className="btn-close" onClick={onClose} aria-label="Close"></button>
+                        <button type="button" className="btn-close" onClick={(e) => { e.target.blur(); onClose(); }} aria-label="Close"></button>
                     </div>
                     <div className="modal-body">
                         <form onSubmit={handleSubmit} id="task-form">
@@ -78,7 +93,16 @@ function TaskModal({ isOpen, onClose, onSave, task }) {
                             <div className="row">
                                 <div className="col-md-6 mb-3">
                                     <label htmlFor="fechaLimite" className="form-label">Fecha límite</label>
-                                    <input type="datetime-local" name="fechaLimite" value={formData.fechaLimite || ''} onChange={handleChange} className="form-control" />
+                                    <DatePicker
+                                        selected={formData.fechaLimite}
+                                        onChange={date => handleDateChange(date, 'fechaLimite')}
+                                        showTimeSelect
+                                        dateFormat="dd/MM/yyyy h:mm aa"
+                                        timeFormat="h:mm aa"
+                                        locale="es"
+                                        className="form-control"
+                                        placeholderText="Selecciona fecha y hora"
+                                    />
                                 </div>
                                 <div className="col-md-6 mb-3">
                                     <label htmlFor="prioridad" className="form-label">Prioridad</label>
@@ -105,12 +129,21 @@ function TaskModal({ isOpen, onClose, onSave, task }) {
                             </div>
                             <div className="mb-3">
                                 <label htmlFor="reminderDate" className="form-label">Avisar en (Opcional)</label>
-                                <input type="datetime-local" name="reminderDate" value={formData.reminderDate || ''} onChange={handleChange} className="form-control" />
+                                <DatePicker
+                                    selected={formData.reminderDate}
+                                    onChange={date => handleDateChange(date, 'reminderDate')}
+                                    showTimeSelect
+                                    dateFormat="dd/MM/yyyy h:mm aa"
+                                    timeFormat="h:mm aa"
+                                    locale="es"
+                                    className="form-control"
+                                    placeholderText="Selecciona fecha y hora"
+                                />
                             </div>
                         </form>
                     </div>
                     <div className="modal-footer">
-                        <button type="button" className="btn btn-secondary" onClick={onClose}>Cerrar</button>
+                        <button type="button" className="btn btn-secondary" onClick={(e) => { e.target.blur(); onClose(); }}>Cerrar</button>
                         <button type="submit" form="task-form" className="btn btn-primary">Guardar</button>
                     </div>
                 </div>
