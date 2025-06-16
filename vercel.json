@@ -1,6 +1,10 @@
 {
   "builds": [
     {
+      "src": "api/**/*.js",
+      "use": "@vercel/node"
+    },
+    {
       "src": "package.json",
       "use": "@vercel/static-build",
       "config": { "distDir": "dist" }
@@ -8,10 +12,12 @@
   ],
   "routes": [
     {
-      "src": "/api/tasks.*",
-      "dest": "/api/tasks.js"
+      "src": "/api/(.*)",
+      "dest": "/api/$1"
     },
-    { "handle": "filesystem" },
+    {
+      "handle": "filesystem"
+    },
     {
       "src": "/(.*)",
       "dest": "/index.html"
