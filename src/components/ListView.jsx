@@ -10,6 +10,18 @@ const getPriorityClass = (priority) => {
     }
 };
 
+const formatDateTime = (dateString) => {
+    if (!dateString) return 'N/A';
+    return new Date(dateString).toLocaleString('en-US', {
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+        hour: 'numeric',
+        minute: '2-digit',
+        hour12: true,
+    });
+};
+
 const getDaysRemaining = (dueDate) => {
     if (!dueDate) return { text: 'N/A', class: '' };
     const diffTime = new Date(dueDate) - new Date();
@@ -78,7 +90,7 @@ function ListView({ tasks, onEdit, onDelete, selectedIds, onSelectionChange }) {
                                 <td>{task.titulo}</td>
                                 <td>{task.cliente}</td>
                                 <td>
-                                    {task.fechaLimite ? new Date(task.fechaLimite).toLocaleDateString() : 'N/A'}
+                                    {formatDateTime(task.fechaLimite)}
                                     <br />
                                     <small className={daysRemaining.class}>{daysRemaining.text}</small>
                                 </td>

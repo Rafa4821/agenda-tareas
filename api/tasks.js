@@ -1,33 +1,67 @@
-// Usaremos una "base de datos" en memoria para simplicidad.
-// En una app real, aquí conectarías a MongoDB, PostgreSQL, Firebase, etc.
-let tasks = [];
+import { kv } from '@vercel/kv';
 
-export default function handler(request, response) {
+export default async function handler(request, response) {
     const { method } = request;
 
-    switch (method) {
-        case 'GET':
-            response.status(200).json(tasks);
-            break;
-        case 'POST':
-            const newTask = { ...request.body, id: Date.now().toString() };
-            tasks.push(newTask);
-            response.status(201).json(newTask);
-            break;
-        case 'PUT':
-            const { id } = request.query;
-            const updatedTaskData = request.body;
-            tasks = tasks.map(task => (task.id === id ? { ...task, ...updatedTaskData } : task));
-            const updatedTask = tasks.find(task => task.id === id);
-            response.status(200).json(updatedTask);
-            break;
-        case 'DELETE':
-            const { id: deleteId } = request.query;
-            tasks = tasks.filter(task => task.id !== deleteId);
-            response.status(204).send(); // No content
-            break;
-        default:
-            response.setHeader('Allow', ['GET', 'POST', 'PUT', 'DELETE']);
-            response.status(405).end(`Method ${method} Not Allowed`);
+    try {
+        switch (method) {
+            case 'GET': {
+                const tasks = await kv.get('tasks') || [];
+                return response.status(200).json(tasks);
+            }
+            case 'POST': {
+                const newTask = { ...request.body, id: `task_${Date.now()}` };
+                const tasks = await kv.get('tasks') || [];
+                tasks.push(newTask);
+                await kv.set('tasks', tasks);
+                return response.status(201).json(newTask);
+            }
+            case 'PUT': {
+                const { id } = request.query;
+                if (!id) {
+                    return response.status(400).json({ message: 'Task ID is required' });
+                }
+                const updatedTaskData = request.body;
+                let tasks = await kv.get('tasks') || [];
+                let taskFound = false;
+                tasks = tasks.map(task => {
+                    if (task.id === id) {
+                        taskFound = true;
+                        return { ...task, ...updatedTaskData, id }; // Ensure id is not overwritten
+                    }
+                    return task;
+                });
+
+                if (!taskFound) {
+                    return response.status(404).json({ message: `Task with id ${id} not found` });
+                }
+
+                await kv.set('tasks', tasks);
+                const updatedTask = tasks.find(task => task.id === id);
+                return response.status(200).json(updatedTask);
+            }
+            case 'DELETE': {
+                 const { id } = request.query;
+                 if (!id) {
+                    return response.status(400).json({ message: 'Task ID is required' });
+                 }
+                let tasks = await kv.get('tasks') || [];
+                const initialLength = tasks.length;
+                tasks = tasks.filter(task => task.id !== id);
+
+                if (tasks.length === initialLength) {
+                     return response.status(404).json({ message: `Task with id ${id} not found` });
+                }
+
+                await kv.set('tasks', tasks);
+                return response.status(204).send();
+            }
+            default:
+                response.setHeader('Allow', ['GET', 'POST', 'PUT', 'DELETE']);
+                return response.status(405).end(`Method ${method} Not Allowed`);
+        }
+    } catch (error) {
+        console.error('API Error:', error);
+        return response.status(500).json({ message: 'Internal Server Error', error: error.message });
     }
 }
