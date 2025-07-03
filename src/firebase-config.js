@@ -5,12 +5,12 @@ import { getAuth } from "firebase/auth";
 
 // Your web app's Firebase configuration
 const firebaseConfig = {
-  apiKey: "AIzaSyAezh2CA36_uEe0sUIW44ztMcWjb6bfzk0",
-  authDomain: "agenda-tareas-9a30f.firebaseapp.com",
-  projectId: "agenda-tareas-9a30f",
-  storageBucket: "agenda-tareas-9a30f.firebasestorage.app",
-  messagingSenderId: "425176114210",
-  appId: "1:425176114210:web:fcfb0d6a2643bb49a6d67b"
+  apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
+  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
+  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
+  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
+  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
+  appId: import.meta.env.VITE_FIREBASE_APP_ID
 };
 
 // Initialize Firebase
