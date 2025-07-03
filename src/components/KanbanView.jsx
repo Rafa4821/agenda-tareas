@@ -41,7 +41,7 @@ function KanbanColumn({ status, tasks, onEdit, onDrop }) {
     };
 
     return (
-        <div className="col-md-4">
+                <div className="col-12 col-md-4 mb-3 mb-md-0">
             <div className="kanban-col p-2 rounded bg-light" onDragOver={handleDragOver} onDrop={(e) => onDrop(e, status)}>
                 <h4 className="h6 mb-3 text-center">{status}</h4>
                 <div className="kanban-tasks">

@@ -4,7 +4,7 @@ import dayGridPlugin from '@fullcalendar/daygrid';
 import interactionPlugin from '@fullcalendar/interaction';
 import bootstrap5Plugin from '@fullcalendar/bootstrap5';
 
-function CalendarView({ tasks, onTaskClick }) {
+function CalendarView({ tasks, onTaskClick, onTaskUpdate }) {
     const events = tasks.map(task => ({
         id: task.id,
         title: task.titulo,
@@ -16,9 +16,17 @@ function CalendarView({ tasks, onTaskClick }) {
         borderColor: getPriorityColor(task.prioridad)
     }));
 
-    const handleEventClick = (clickInfo) => {
-        // Usamos las props extendidas para pasar la tarea completa
+        const handleEventClick = (clickInfo) => {
         onTaskClick(clickInfo.event.extendedProps);
+    };
+
+    const handleEventDrop = (dropInfo) => {
+        const { event } = dropInfo;
+        const updatedTask = {
+            ...event.extendedProps,
+            fechaLimite: event.start.toISOString(),
+        };
+        onTaskUpdate(updatedTask);
     };
 
     return (
@@ -32,7 +40,9 @@ function CalendarView({ tasks, onTaskClick }) {
                 right: 'dayGridMonth,dayGridWeek,dayGridDay'
             }}
             events={events}
-            eventClick={handleEventClick}
+                        eventClick={handleEventClick}
+            editable={true}
+            eventDrop={handleEventDrop}
             locale='es' // Poner el calendario en español
             buttonText={{
                 today: 'Hoy',

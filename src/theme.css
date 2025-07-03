@@ -1,0 +1,98 @@
+:root {
+    /* Aesthetic Palette */
+    --bs-primary: #574345; /* Dark Taupe */
+    --bs-primary-rgb: 87, 67, 69;
+    --bs-secondary: #E3DACB; /* Lighter Taupe */
+    --bs-light: #F5EED4; /* Light Cream */
+    --bs-dark: #574345; /* Dark Taupe */
+
+    --bs-body-bg: #F2ECDC; /* Light Beige */
+    --bs-body-color: #574345; /* Dark Taupe */
+    --bs-border-color: #d1c8b9; /* Darker border for light mode */
+
+    --bs-card-bg: #F5EED4; /* Light Cream */
+    --bs-card-border-color: #E3DACB;
+    --bs-card-box-shadow: 0 0 1rem 0 rgba(87, 67, 69, .1);
+
+    /* State Colors (keep them for clarity) */
+    --bs-success: #2dce89;
+    --bs-info: #11cdef;
+    --bs-warning: #fb6340;
+    --bs-danger: #f5365c;
+}
+
+[data-bs-theme="dark"] {
+    /* Aesthetic Palette - Dark Mode */
+    --bs-primary: #C5FFE5; /* Mint Green */
+    --bs-primary-rgb: 197, 255, 229;
+    --bs-secondary: #8a7a7c; /* Muted Taupe for secondary elements */
+    
+    --bs-body-bg: #2a2223; /* Very Dark Taupe */
+    --bs-body-color: #F2ECDC; /* Light Beige */
+    --bs-border-color: #706163; /* Lighter border for dark mode */
+
+    --bs-card-bg: #574345; /* Dark Taupe */
+    --bs-card-border-color: #8a7a7c;
+    --bs-card-box-shadow: none;
+
+    /* Overrides for components */
+    .table {
+        --bs-table-bg: #574345;
+        --bs-table-color: #F2ECDC;
+        --bs-table-border-color: #706163;
+        --bs-table-striped-bg: #624f51;
+    }
+
+    .table-primary {
+        --bs-table-bg: #C5FFE5 !important;
+        --bs-table-color: #2a2223 !important;
+    }
+
+    .modal-content {
+        background-color: #574345;
+        border-color: #8a7a7c;
+    }
+
+    .form-control {
+        background-color: #2a2223;
+        border-color: #8a7a7c;
+        color: #F2ECDC;
+    }
+
+    .form-control:focus {
+        background-color: #2a2223;
+        color: #F2ECDC;
+    }
+    
+    .form-control::placeholder {
+        color: #8a7a7c;
+    }
+}
+
+body {
+    transition: background-color 0.3s ease, color 0.3s ease;
+}
+
+/* Responsive Task Cards for Mobile */
+@media (max-width: 767.98px) {
+    .task-card {
+        border: 1px solid var(--bs-border-color);
+        border-radius: .5rem;
+        box-shadow: var(--bs-card-box-shadow);
+        background-color: var(--bs-card-bg);
+    }
+
+    .task-card.selected {
+        border-color: var(--bs-primary);
+        box-shadow: 0 0 0 2px var(--bs-primary);
+    }
+
+    .task-card .card-title {
+        font-size: 1.1rem;
+        font-weight: 600;
+    }
+
+    .task-card .task-details strong {
+        color: var(--bs-primary);
+    }
+}

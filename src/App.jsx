@@ -1,4 +1,6 @@
 import { useState, useEffect } from 'react';
+import { useAuth } from './context/AuthContext.jsx';
+import { useTheme } from './context/ThemeContext.jsx';
 import Header from './components/Header';
 import ViewToggles from './components/ViewToggles';
 import FilterControls from './components/FilterControls';
@@ -6,7 +8,8 @@ import ListView from './components/ListView';
 import KanbanView from './components/KanbanView';
 import CalendarView from './components/CalendarView';
 import TaskModal from './components/TaskModal';
-import { getTasks, saveTask, deleteTask, bulkDeleteTasks } from './services/taskService';
+import { streamTasks, saveTask, deleteTask, bulkDeleteTasks, updateTask } from './services/taskService';
+import { ToastContainer, toast } from 'react-toastify';
 
 function BulkActionsBar({ selectedCount, onBulkDelete }) {
   if (selectedCount === 0) return null;
@@ -40,12 +43,16 @@ function NotificationToast({ message, onClose }) {
 }
 
 function App() {
+    const { currentUser, logout } = useAuth();
+    const { theme } = useTheme();
     const [tasks, setTasks] = useState([]);
     const [view, setView] = useState('list');
-    const [filters, setFilters] = useState({ cliente: '', prioridad: 'all' });
+        const [filters, setFilters] = useState({ cliente: '', prioridad: 'all', tag: 'all', status: 'all', dateRange: 'all' });
+    const [sortOptions, setSortOptions] = useState({ sortBy: 'fechaLimite', direction: 'asc' });
     const [editingTask, setEditingTask] = useState(null);
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [loading, setLoading] = useState(true);
+    const [notifiedTaskIds, setNotifiedTaskIds] = useState(new Set());
     const [selectedTaskIds, setSelectedTaskIds] = useState(new Set());
     const [notifications, setNotifications] = useState([]);
 
@@ -103,17 +110,37 @@ function App() {
     }, [tasks]);
 
     useEffect(() => {
-        setLoading(true);
-        getTasks()
-            .then(data => {
-                setTasks(data);
-                setLoading(false);
-            })
-            .catch(err => {
-                console.error("Error loading tasks from localStorage:", err);
+        if (currentUser) {
+            setLoading(true);
+            // streamTasks devuelve una función para desuscribirse
+            const unsubscribe = streamTasks(currentUser.uid, (tasks) => {
+                setTasks(tasks);
                 setLoading(false);
             });
-    }, []);
+
+            // Limpiar la suscripción cuando el componente se desmonte o el usuario cambie
+            return () => unsubscribe();
+        } else {
+            setTasks([]); // Limpiar tareas si el usuario cierra sesión
+        }
+    }, [currentUser]);
+
+    useEffect(() => {
+        const interval = setInterval(() => {
+            const now = new Date();
+            tasks.forEach(task => {
+                if (task.reminderDate && !task.completed && !notifiedTaskIds.has(task.id)) {
+                    const reminderDate = new Date(task.reminderDate);
+                    if (now >= reminderDate) {
+                        toast.info(`Recordatorio: ${task.titulo}`);
+                        setNotifiedTaskIds(prev => new Set(prev).add(task.id));
+                    }
+                }
+            });
+        }, 60000); // Check every minute
+
+        return () => clearInterval(interval);
+    }, [tasks, notifiedTaskIds]);
 
     const handleOpenModal = (task = null) => {
         setEditingTask(task);
@@ -125,12 +152,57 @@ function App() {
         setEditingTask(null);
     };
 
+    const handleTaskUpdate = async (updatedTask) => {
+        try {
+            await updateTask(updatedTask.id, updatedTask);
+        } catch (error) {
+            console.error("Error updating subtask status: ", error);
+            alert('Error al actualizar la tarea.');
+        }
+    };
+
+        const getNextDueDate = (currentDueDate, recurrence) => {
+        if (!currentDueDate || !recurrence) return null;
+        const date = new Date(currentDueDate);
+        const { frequency, interval } = recurrence;
+
+        if (frequency === 'daily') {
+            date.setDate(date.getDate() + interval);
+        } else if (frequency === 'weekly') {
+            date.setDate(date.getDate() + 7 * interval);
+        } else if (frequency === 'monthly') {
+            date.setMonth(date.getMonth() + interval);
+        }
+        return date;
+    };
+
     const handleSaveTask = async (taskData) => {
-        const savedTask = await saveTask(taskData);
-        if (taskData.id) { // Es una actualización
-            setTasks(tasks.map(t => (t.id === savedTask.id ? savedTask : t)));
-        } else { // Es una creación
-            setTasks([...tasks, savedTask]);
+        try {
+            if (taskData.isRecurring && taskData.estado === 'Completada') {
+                const nextDueDate = getNextDueDate(taskData.fechaLimite, taskData.recurring);
+                const nextReminderDate = taskData.reminderDate && nextDueDate 
+                    ? new Date(nextDueDate.getTime() - (new Date(taskData.fechaLimite).getTime() - new Date(taskData.reminderDate).getTime()))
+                    : null;
+
+                const newTask = {
+                    ...taskData,
+                    id: undefined, // Firestore will generate a new ID
+                    fechaLimite: nextDueDate ? nextDueDate.toISOString() : null,
+                    reminderDate: nextReminderDate ? nextReminderDate.toISOString() : null,
+                    estado: 'Por hacer',
+                    completed: false,
+                    subtasks: taskData.subtasks.map(st => ({ ...st, completed: false }))
+                };
+
+                const completedTask = { ...taskData, isRecurring: false };
+                await updateTask(completedTask.id, completedTask);
+                await saveTask(newTask, currentUser.uid);
+
+            } else {
+                await saveTask(taskData, currentUser.uid);
+            }
+        } catch (error) {
+            console.error("Error saving task:", error);
         }
         handleCloseModal();
     };
@@ -150,42 +222,97 @@ function App() {
         }
     };
 
-    const filteredTasks = tasks.filter(task =>
-        (filters.cliente === '' || task.cliente.toLowerCase().includes(filters.cliente.toLowerCase())) &&
-        (filters.prioridad === 'all' || task.prioridad === filters.prioridad)
-    );
+    const allTags = [...new Set(tasks.flatMap(task => task.tags || []))];
+
+        const filteredAndSortedTasks = tasks.filter(task => {
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+
+        const taskDueDate = task.fechaLimite ? new Date(task.fechaLimite) : null;
+        if (taskDueDate) {
+            taskDueDate.setHours(0, 0, 0, 0);
+        }
+
+        const checkDateRange = () => {
+            if (filters.dateRange === 'all') return true;
+            if (!taskDueDate) return false;
+
+            const tomorrow = new Date(today);
+            tomorrow.setDate(tomorrow.getDate() + 1);
+
+            const endOfWeek = new Date(today);
+            endOfWeek.setDate(today.getDate() - today.getDay() + 7);
+
+            if (filters.dateRange === 'overdue') return taskDueDate < today;
+            if (filters.dateRange === 'today') return taskDueDate.getTime() === today.getTime();
+            if (filters.dateRange === 'week') return taskDueDate >= today && taskDueDate <= endOfWeek;
+            return true;
+        };
+
+        return (
+            (filters.cliente === '' || (task.cliente && task.cliente.toLowerCase().includes(filters.cliente.toLowerCase()))) &&
+            (filters.prioridad === 'all' || task.prioridad === filters.prioridad) &&
+            (filters.tag === 'all' || (task.tags && task.tags.includes(filters.tag))) &&
+            (filters.status === 'all' || task.status === filters.status) &&
+            checkDateRange()
+        );
+    }).sort((a, b) => {
+        const priorityValues = { 'Muy alta': 4, 'Alta': 3, 'Media': 2, 'Baja': 1 };
+        const dir = sortOptions.direction === 'asc' ? 1 : -1;
+
+        if (sortOptions.sortBy === 'prioridad') {
+            return (priorityValues[a.prioridad] - priorityValues[b.prioridad]) * dir;
+        }
+        if (sortOptions.sortBy === 'fechaLimite') {
+            const dateA = a.fechaLimite ? new Date(a.fechaLimite) : 0;
+            const dateB = b.fechaLimite ? new Date(b.fechaLimite) : 0;
+            return (dateA - dateB) * dir;
+        }
+        if (sortOptions.sortBy === 'createdAt') {
+            const dateA = a.createdAt?.toDate() || 0;
+            const dateB = b.createdAt?.toDate() || 0;
+            return (dateA - dateB) * dir;
+        }
+        return 0;
+    });
 
     return (
         <div className="container my-4">
-            <div style={{ position: 'fixed', top: '20px', right: '20px', zIndex: 1100 }}>
-                {notifications.map(notif => (
-                    <NotificationToast 
-                        key={notif.id} 
-                        message={notif.message} 
-                        onClose={() => setNotifications(n => n.filter(item => item.id !== notif.id))} 
-                    />
-                ))}
-            </div>
+             <ToastContainer
+                position="bottom-right"
+                autoClose={5000}
+                hideProgressBar={false}
+                newestOnTop={false}
+                closeOnClick
+                rtl={false}
+                pauseOnFocusLoss
+                draggable
+                pauseOnHover
+                theme={theme}
+            />
+            
+            <Header onNewTask={() => handleOpenModal(null)} onLogout={logout} userEmail={currentUser?.email} />
 
-            <Header onNewTask={() => handleOpenModal(null)} />
-
-            <div className="d-flex justify-content-between align-items-center my-3">
+                        <div className="d-flex flex-column flex-md-row justify-content-between align-items-md-center my-3">
                 <ViewToggles currentView={view} setView={setView} />
-                <FilterControls filters={filters} setFilters={setFilters} />
+                                <div className="w-100 mt-3 mt-md-0">
+                    <FilterControls filters={filters} setFilters={setFilters} allTags={allTags} sortOptions={sortOptions} setSortOptions={setSortOptions} />
+                </div>
             </div>
 
             <main className="pb-5">
                 {loading && <p>Cargando tareas...</p>}
                 {!loading && view === 'list' && 
                     <ListView 
-                        tasks={filteredTasks} 
+                        tasks={filteredAndSortedTasks} 
                         onEdit={handleOpenModal} 
                         onDelete={handleDeleteTask} 
                         selectedIds={selectedTaskIds}
                         onSelectionChange={setSelectedTaskIds}
+                        onTaskUpdate={handleTaskUpdate}
                     />}
-                {!loading && view === 'kanban' && <KanbanView tasks={filteredTasks} setTasks={setTasks} onEdit={handleOpenModal} />}
-                {!loading && view === 'calendar' && <CalendarView tasks={tasks} onTaskClick={handleOpenModal} />}
+                {!loading && view === 'kanban' && <KanbanView tasks={filteredAndSortedTasks} setTasks={setTasks} onEdit={handleOpenModal} />}
+                {!loading && view === 'calendar' && <CalendarView tasks={filteredAndSortedTasks} onTaskClick={handleOpenModal} onTaskUpdate={handleTaskUpdate} />}
             </main>
 
             <TaskModal
